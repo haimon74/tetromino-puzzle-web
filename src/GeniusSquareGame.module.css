@@ -1,0 +1,213 @@
+.geniusSquareGame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.board {
+  display: flex;
+  flex-direction: row;
+  margin-top: 20px;
+}
+
+.labelsCol {
+  display: flex;
+  flex-direction: column;
+  margin-right: 4px;
+}
+
+.labelRow {
+  height: 60px;
+  width: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 28px;
+}
+
+.boardGrid {
+  display: flex;
+  flex-direction: column;
+}
+
+.boardRow {
+  display: flex;
+}
+
+.cell {
+  width: 60px;
+  height: 60px;
+  border: 1px solid #aaa;
+  background: #f8f8f8;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cellBlocker {
+  background: #222;
+}
+
+.blockerDot {
+  width: 33px;
+  height: 33px;
+  background: #111;
+  border-radius: 50%;
+  display: block;
+}
+
+.labelsRow {
+  display: flex;
+  margin-top: 2px;
+}
+
+.labelCol {
+  width: 60px;
+  height: 60px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.piecesArea {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 32px;
+  justify-content: center;
+}
+
+.polyominoPiece {
+  position: relative;
+  display: inline-block;
+  padding: 8px;
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  min-width: 60px;
+  min-height: 60px;
+  margin: 4px;
+  transition: border-color 0.2s;
+}
+
+.polyominoPieceSelected {
+  border-color: purple;
+  box-shadow: 0 0 8px 2px #b388ff44;
+}
+
+.polyominoCells {
+  position: relative;
+  width: 300px;
+  height: 300px;
+}
+
+.polyominoCell {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border-radius: 4px;
+  border: 1.5px solid #3332;
+  box-shadow: 1px 1px 2px #0002;
+}
+
+.boardFill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 60px;
+  height: 60px;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  opacity: 1 !important;
+  z-index: 1;
+}
+
+.timer {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #333;
+  margin-left: 8px;
+}
+
+.solutionToggleBtn {
+  font-size: 1.3em;
+  background: #fffbe7;
+  border: 1.5px solid #ffb300;
+  border-radius: 6px;
+  width: 40px;
+  height: 36px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  margin-left: 8px;
+  box-shadow: 0 1px 4px #ffb30022;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.solutionToggleBtnActive {
+  background: orange;
+  color: #fff;
+  box-shadow: 0 2px 8px #ff980044;
+  border-color: #ff9800;
+}
+
+.rotateBtn {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  background: #fff;
+  border: 1.5px solid #b388ff;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  font-size: 18px;
+  color: #7c4dff;
+  cursor: pointer;
+  box-shadow: 0 1px 4px #b388ff33;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.rotateBtn:hover {
+  background: #ede7f6;
+  border-color: #7c4dff;
+}
+
+.winMessage {
+  margin: 16px 0;
+  font-size: 1.3em;
+  color: #ff9800;
+  font-weight: bold;
+}
+
+.newGameBtn {
+  background: #1976d2;
+  color: #fff;
+  height: 36px;
+  border: none;
+  border-radius: 6px;
+  padding: 0 18px;
+  font-size: 1em;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 1px 4px #1976d222;
+  transition: background 0.2s, color 0.2s;
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+}
+.newGameBtn:hover {
+  background: #1565c0;
+} 
