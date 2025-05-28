@@ -1,0 +1,1 @@
+export const createSolverWorker = () => new Worker(`${process.env.PUBLIC_URL}/solverWorker.js`); 

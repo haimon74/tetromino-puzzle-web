@@ -3,3 +3,19 @@
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
+
+// Always mock the worker factory in tests
+jest.mock('./solverWorkerFactory');
+
+// Mock Worker for tests
+global.Worker = class {
+  onmessage = null;
+  postMessage(msg) {
+    setTimeout(() => {
+      if (this.onmessage) {
+        this.onmessage({ data: [{ id: 'mock', origin: { row: 0, col: 0 }, rotation: [] }] });
+      }
+    }, 10);
+  }
+  terminate() {}
+};

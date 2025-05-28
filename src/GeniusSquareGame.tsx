@@ -1,8 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styles from './GeniusSquareGame.module.css';
+import { BoardGrid } from './components/BoardGrid';
+import { PolyominoTray } from './components/PolyominoTray';
+import { TimerDisplay } from './components/TimerDisplay';
+import { WinMessage } from './components/WinMessage';
+import { ControlBar } from './components/ControlBar';
+import { createSolverWorker as realCreateSolverWorker } from './solverWorkerFactory';
 // import placeSound from './place-sound.mp3'; // Commented out for now
 // @ts-ignore
-const createSolverWorker = () => new Worker(new URL('./solverWorker.js', import.meta.url));
+const isTest = typeof process !== 'undefined' && process.env && process.env.JEST_WORKER_ID !== undefined;
 
 // Types for coordinates and pieces
 type Coord = { row: number; col: number };
@@ -222,19 +228,24 @@ function formatTime(secs: number) {
   return `${m}:${s}`;
 }
 
-// Helper to get all 4 rotations of a shape
-function getAllRotations(cells: Coord[]): Coord[][] {
-  const rots = [cells];
-  let cur = cells;
-  for (let i = 1; i < 4; ++i) {
-    cur = normalizeCells(rotateCells(cur));
-    // Avoid duplicate rotations (for symmetric shapes)
-    if (!rots.some(r => JSON.stringify(r) === JSON.stringify(cur))) {
-      rots.push(cur);
-    }
+const createSolverWorker = () => {
+  if (isTest) {
+    // Return a dummy worker in test, typed as Worker
+    return {
+      postMessage: () => {},
+      terminate: () => {},
+      onmessage: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+      onerror: null,
+      onmessageerror: null,
+      // @ts-ignore
+      CLOSED: 0, CLOSING: 0, CONNECTING: 0, OPEN: 0, readyState: 0, url: '',
+    } as unknown as Worker;
   }
-  return rots;
-}
+  return realCreateSolverWorker();
+};
 
 const GeniusSquareGame: React.FC = () => {
   const [blockers, setBlockers] = useState<Blocker[]>([]);
@@ -328,11 +339,26 @@ const GeniusSquareGame: React.FC = () => {
     const cells = rotations[id] || piece.cells;
     const grabbedCell = cells[grabbedCellIdx] || cells[0];
     const origin = { row: row - grabbedCell.row, col: col - grabbedCell.col };
-    if (!isValidPlacement(origin, cells, blockers, placed, id)) return;
-    setPlaced(prev => [
-      ...prev.filter(p => p.id !== id),
-      { id, origin, rotation: cells }
-    ]);
+    // LOGGING for debugging
+    console.log('--- handleDrop ---');
+    console.log('dragging:', dragging);
+    console.log('grabbedCellIdx:', grabbedCellIdx);
+    console.log('cells:', cells);
+    console.log('grabbedCell:', grabbedCell);
+    console.log('drop row,col:', row, col);
+    console.log('calculated origin:', origin);
+    if (!isValidPlacement(origin, cells, blockers, placed, id)) {
+      console.log('Invalid placement');
+      return;
+    }
+    setPlaced(prev => {
+      const newPlaced = [
+        ...prev.filter(p => p.id !== id),
+        { id, origin, rotation: cells }
+      ];
+      console.log('newPlaced:', newPlaced);
+      return newPlaced;
+    });
     setDragging(null);
     // Play sound
     // const audio = new Audio(placeSound);
@@ -360,196 +386,65 @@ const GeniusSquareGame: React.FC = () => {
     }, 100);
   };
 
-  // Drag from board (to move piece)
-  const handleBoardPieceDragStart = (id: string, origin: Coord, e: React.DragEvent) => {
-    handleDragStart(id, true, e, 0);
-  };
-
   // Remove piece from board (double click)
   const handleRemoveFromBoard = (id: string) => {
     setPlaced(prev => prev.filter(p => p.id !== id));
   };
 
+  // Memoized derived data
+  const trayPieces = React.useMemo(() => pieces, [pieces]);
+
+  // Memoized event handlers
+  const memoHandleSelect = useCallback(handleSelect, [handleSelect]);
+  const memoHandleRotate = useCallback(handleRotate, [handleRotate]);
+  const memoHandleDragStart = useCallback(handleDragStart, [handleDragStart]);
+  const memoHandleDragEnd = useCallback(() => setDragging(null), []);
+  const memoHandleDrop = useCallback(handleDrop, [handleDrop, dragging, pieces, rotations, blockers, placed]);
+  const memoHandleRemoveFromBoard = useCallback(handleRemoveFromBoard, [handleRemoveFromBoard]);
+
   return (
     <div className={styles.geniusSquareGame}>
       <h1>Blocks Puzzle</h1>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: '8px' }}>
-        <button className={styles.newGameBtn} onClick={handleNewGame}>New Game</button>
-        <span className={styles.timer}>⏱️ {formatTime(timer)}</span>
-        <button
-          className={`${styles.solutionToggleBtn}${showingSolution ? ' ' + styles.active : ''}`}
-          title={showingSolution ? 'Back to my game' : 'Show solution'}
-          disabled={!solutionCache}
-          onClick={() => {
-            if (showingSolution) {
-              if (userPlacedBackup) setPlaced(userPlacedBackup);
-              setShowingSolution(false);
+      <ControlBar
+        onNewGame={handleNewGame}
+        onShowSolution={() => {
+          if (showingSolution) {
+            if (userPlacedBackup) setPlaced(userPlacedBackup);
+            setShowingSolution(false);
+          } else {
+            setUserPlacedBackup(placed);
+            if (solutionCache) {
+              setPlaced(solutionCache);
+              setShowingSolution(true);
             } else {
-              setUserPlacedBackup(placed);
-              if (solutionCache) {
-                setPlaced(solutionCache);
-                setShowingSolution(true);
-              } else {
-                alert('Solution is still being calculated. Please wait.');
-              }
+              alert('Solution is still being calculated. Please wait.');
             }
-          }}
-        >
-          💡
-        </button>
-      </div>
-      {win && <div className={styles.winMessage}>🎉 You solved it! 🎉</div>}
-      <div
-        className={styles.boardGrid}
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(6, 60px)',
-          gridTemplateRows: 'repeat(6, 60px)',
-          alignItems: 'center',
-          justifyItems: 'center',
-          margin: '0 auto',
+          }
         }}
-      >
-        {ROWS.map((_, rowIdx) =>
-          COLS.map((_, colIdx) => {
-            const isBlocker = blockers.some(b => b.row === rowIdx && b.col === colIdx);
-            // Check if a piece is placed here
-            const placedPiece = placed.find(pp =>
-              pp.rotation.some(cell =>
-                pp.origin.row + cell.row === rowIdx && pp.origin.col + cell.col === colIdx
-              )
-            );
-            return (
-              <div
-                key={`cell-${rowIdx}-${colIdx}`}
-                className={`${styles.cell}${isBlocker ? ' ' + styles.cellBlocker : ''}`}
-                onDragOver={e => handleDragOver(rowIdx, colIdx, e)}
-                onDrop={e => handleDrop(rowIdx, colIdx, e)}
-              >
-                {isBlocker && <span className={styles.blockerDot} />}
-                {placedPiece && (
-                  <div
-                    className={`${styles.polyominoCell} ${styles.boardFill}`}
-                    style={{
-                      background: pieces.find(p => p.id === placedPiece.id)?.color,
-                      opacity: 1,
-                    }}
-                    draggable
-                    onDragStart={e => {
-                      const piece = pieces.find(p => p.id === placedPiece.id);
-                      if (!piece) return;
-                      const relCells = placedPiece.rotation;
-                      const minRow = Math.min(...relCells.map(c => c.row));
-                      const minCol = Math.min(...relCells.map(c => c.col));
-                      const rect = (e.target as HTMLElement).getBoundingClientRect();
-                      const mouseX = e.clientX - rect.left;
-                      const mouseY = e.clientY - rect.top;
-                      let grabbedIdx = 0;
-                      for (let i = 0; i < relCells.length; ++i) {
-                        const c = relCells[i];
-                        const x = (c.col - minCol) * 60;
-                        const y = (c.row - minRow) * 60;
-                        if (
-                          mouseX >= x && mouseX < x + 60 &&
-                          mouseY >= y && mouseY < y + 60
-                        ) {
-                          grabbedIdx = i;
-                          break;
-                        }
-                      }
-                      const dragImg = createPolyominoDragImage(relCells, piece.color, grabbedIdx, 60);
-                      e.dataTransfer.setDragImage(dragImg.img, dragImg.offsetX, dragImg.offsetY);
-                      handleDragStart(placedPiece.id, true, e, grabbedIdx);
-                    }}
-                    onDoubleClick={() => handleRemoveFromBoard(placedPiece.id)}
-                    title="Double-click to remove"
-                    onDragEnd={() => setDragging(null)}
-                  />
-                )}
-              </div>
-            );
-          })
-        )}
-      </div>
-      <div className={styles.piecesArea}>
-        {pieces.map(piece => {
-          // If placed, don't show in tray
-          if (placed.find(p => p.id === piece.id)) return null;
-          const cells = rotations[piece.id] || piece.cells;
-          const isDragging = dragging && dragging.id === piece.id;
-          // Calculate bounding box for tray alignment and sizing
-          const minRow = Math.min(...cells.map(c => c.row));
-          const minCol = Math.min(...cells.map(c => c.col));
-          const maxRow = Math.max(...cells.map(c => c.row));
-          const maxCol = Math.max(...cells.map(c => c.col));
-          const shapeWidth = (maxCol - minCol + 1) * 60;
-          const shapeHeight = (maxRow - minRow + 1) * 60;
-          return (
-            <div
-              key={piece.id}
-              className={`${styles.polyominoPiece} ${selectedId === piece.id && !isDragging ? styles.polyominoPieceSelected : ''}`}
-              style={{
-                borderColor: selectedId === piece.id && !isDragging ? 'purple' : 'transparent',
-                width: shapeWidth + 16, // 8px padding each side
-                height: shapeHeight + 16,
-                padding: 8,
-                boxSizing: 'content-box',
-                display: 'inline-block',
-              }}
-              onClick={() => handleSelect(piece.id)}
-              draggable
-              onDragStart={e => {
-                const rect = (e.target as HTMLElement).getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
-                let grabbedIdx = 0;
-                for (let i = 0; i < cells.length; ++i) {
-                  const c = cells[i];
-                  const x = (c.col - minCol) * 60;
-                  const y = (c.row - minRow) * 60;
-                  if (
-                    mouseX >= x && mouseX < x + 60 &&
-                    mouseY >= y && mouseY < y + 60
-                  ) {
-                    grabbedIdx = i;
-                    break;
-                  }
-                }
-                const dragImg = createPolyominoDragImage(cells, piece.color, grabbedIdx, 60);
-                e.dataTransfer.setDragImage(dragImg.img, dragImg.offsetX, dragImg.offsetY);
-                handleDragStart(piece.id, false, e, grabbedIdx);
-              }}
-              onDragEnd={() => setDragging(null)}
-            >
-              <div
-                className={styles.polyominoCells}
-                style={{
-                  width: shapeWidth,
-                  height: shapeHeight,
-                  position: 'relative',
-                }}
-              >
-                {cells.map((cell, idx) => (
-                  <div
-                    key={idx}
-                    className={styles.polyominoCell}
-                    style={{
-                      background: piece.color,
-                      left: `${(cell.col - minCol) * 60}px`,
-                      top: `${(cell.row - minRow) * 60}px`,
-                    }}
-                  />
-                ))}
-              </div>
-              {selectedId === piece.id && !isDragging && (
-                <button className={styles.rotateBtn} onClick={e => { e.stopPropagation(); handleRotate(piece.id); }}>
-                  &#8635;
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
+        timer={timer}
+        solutionAvailable={!!solutionCache}
+        showingSolution={showingSolution}
+      />
+      {win && <WinMessage />}
+      <BoardGrid
+        blockers={blockers}
+        placed={placed}
+        pieces={pieces}
+        onCellDrop={memoHandleDrop}
+        onPieceDragStart={memoHandleDragStart}
+        onPieceDoubleClick={memoHandleRemoveFromBoard}
+      />
+      <PolyominoTray
+        pieces={trayPieces}
+        placed={placed}
+        rotations={rotations}
+        selectedId={selectedId}
+        dragging={dragging}
+        onSelect={memoHandleSelect}
+        onRotate={memoHandleRotate}
+        onDragStart={memoHandleDragStart}
+        onDragEnd={memoHandleDragEnd}
+      />
     </div>
   );
 };
